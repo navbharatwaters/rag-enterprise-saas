@@ -1,0 +1,53 @@
+app.navbharatwater.biz {
+    reverse_proxy 172.18.0.1:3000
+}
+
+api.navbharatwater.biz {
+    encode gzip zstd
+
+    # API endpoints
+    handle /api/* {
+        reverse_proxy api:8000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up Authorization {header.Authorization}
+        }
+    }
+
+    # Health check
+    handle /health {
+        reverse_proxy api:8000
+    }
+
+    # WebSocket for streaming
+    handle /ws/* {
+        reverse_proxy api:8000 {
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
+        }
+    }
+
+    # MinIO API (internal)
+    handle /storage/* {
+        uri strip_prefix /storage
+        reverse_proxy 127.0.0.1:9000
+    }
+
+    # Default
+    handle {
+        reverse_proxy api:8000
+    }
+
+    log {
+        output stdout
+        format console
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        -Server
+    }
+}
